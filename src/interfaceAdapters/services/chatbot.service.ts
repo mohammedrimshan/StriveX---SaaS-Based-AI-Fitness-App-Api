@@ -1,23 +1,34 @@
 import { injectable, inject } from "tsyringe";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Server, Socket } from "socket.io";
-import { ClientModel } from "@/frameworks/database/mongoDB/models/client.model";
-import { IClientModel } from "@/frameworks/database/mongoDB/models/client.model";
+import { ClientModel, IClientModel } from "@/frameworks/database/mongoDB/models/client.model";
 import { NotificationService } from "./notification.service";
 import { config } from "@/shared/config";
 
 @injectable()
 class ChatbotService {
-  private model: any;
+  private genAI: GoogleGenerativeAI;
+  private primaryModel: any;
+  private fallbackModel: any;
   private connectedClients: Set<string> = new Set();
 
   constructor(
     @inject("NotificationService")
     private notificationService: NotificationService
   ) {
-    const genAI = new GoogleGenerativeAI(config.gemini.GEMINI_API_KEY);
-    this.model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+    this.genAI = new GoogleGenerativeAI(config.gemini.MAKERSUITE_KEY);
+
+    // Primary: Gemini 2.5 Flash-Lite Preview (June 17)
+    this.primaryModel = this.genAI.getGenerativeModel({
+      model: "gemini-2.5-flash-lite-preview-06-17",
+      generationConfig: {
+        responseMimeType: "text/plain",
+      },
+    });
+
+    // Fallback: Gemini 2.5 Flash stable
+    this.fallbackModel = this.genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "text/plain",
       },
@@ -34,17 +45,31 @@ class ChatbotService {
 
   private async generateContent(prompt: string): Promise<string> {
     try {
-      const result = await this.model.generateContent(prompt);
-      const text = result.response.text();
-      console.log("Gemini raw response:", text); // Log output
-      return text;
+      const result = await this.primaryModel.generateContent(prompt);
+      return result.response.text().trim();
     } catch (error: any) {
-      console.error("Gemini API Error:", error.message || error);
+      console.warn("Primary Gemini model failed:", error?.message);
+
+      // Fallback on quota or rate limit errors
+      const shouldFallback =
+        error.message?.includes("Too Many Requests") ||
+        error.message?.toLowerCase().includes("quota");
+
+      if (shouldFallback) {
+        console.log("⚠️ Falling back to secondary Gemini model...");
+        try {
+          const fallbackResult = await this.fallbackModel.generateContent(prompt);
+          return fallbackResult.response.text().trim();
+        } catch (fallbackError: any) {
+          console.error("Fallback model also failed:", fallbackError?.message);
+          throw fallbackError;
+        }
+      }
+
       throw error;
     }
   }
 
-  // Main method to generate response for any user input
   async generateResponse(
     userMessage: string,
     clientId: string
@@ -52,8 +77,6 @@ class ChatbotService {
     const profile = await this.getClientFitnessProfile(clientId);
 
     const userLower = userMessage.toLowerCase();
-
-    // Handle simple chit-chat locally (optional)
     const chitChatTriggers = [
       "how are you",
       "how's it going",
@@ -65,11 +88,10 @@ class ChatbotService {
         response: `I'm doing great, ${
           profile?.firstName || "there"
         }! 💪 Ready to crush your fitness goals? Ask me anything about workouts, nutrition, or recovery!`,
-        source: "gemini",
+        source: "chitchat",
       };
     }
 
-    // Compose personalized prompt for Gemini
     const fitnessContext = profile
       ? `Client: ${profile.firstName || "User"}. Fitness goal: ${
           profile.fitnessGoal || "Not set"
@@ -92,19 +114,15 @@ Response:
 `;
 
     try {
-      let aiResponse = await this.generateContent(prompt);
-      aiResponse = aiResponse.trim();
-
-      if (!aiResponse) {
-        return {
-          response: `Let's keep pushing, ${
+      const aiResponse = await this.generateContent(prompt);
+      return {
+        response:
+          aiResponse ||
+          `Let's keep pushing, ${
             profile?.firstName || "champ"
           }! What fitness goal should we tackle today? 💪`,
-          source: "fallback",
-        };
-      }
-
-      return { response: aiResponse, source: "gemini" };
+        source: "gemini",
+      };
     } catch (error) {
       return {
         response:
@@ -114,7 +132,6 @@ Response:
     }
   }
 
-  // Socket.IO handler
   handleSocket(io: Server) {
     io.on("connection", (socket: Socket) => {
       if (this.connectedClients.has(socket.id)) {
@@ -134,7 +151,7 @@ Response:
         } catch (error) {
           socket.emit("response", {
             message: "Something went wrong! Let’s try again! 😅",
-            source: "fallback",
+            source: "error",
           });
         }
       });

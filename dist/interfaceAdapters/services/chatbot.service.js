@@ -30,9 +30,17 @@ let ChatbotService = class ChatbotService {
     constructor(notificationService) {
         this.notificationService = notificationService;
         this.connectedClients = new Set();
-        const genAI = new generative_ai_1.GoogleGenerativeAI(config_1.config.gemini.GEMINI_API_KEY);
-        this.model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+        this.genAI = new generative_ai_1.GoogleGenerativeAI(config_1.config.gemini.MAKERSUITE_KEY);
+        // Primary: Gemini 2.5 Flash-Lite Preview (June 17)
+        this.primaryModel = this.genAI.getGenerativeModel({
+            model: "gemini-2.5-flash-lite-preview-06-17",
+            generationConfig: {
+                responseMimeType: "text/plain",
+            },
+        });
+        // Fallback: Gemini 2.5 Flash stable
+        this.fallbackModel = this.genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
             generationConfig: {
                 responseMimeType: "text/plain",
             },
@@ -45,24 +53,35 @@ let ChatbotService = class ChatbotService {
     }
     generateContent(prompt) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
             try {
-                const result = yield this.model.generateContent(prompt);
-                const text = result.response.text();
-                console.log("Gemini raw response:", text); // Log output
-                return text;
+                const result = yield this.primaryModel.generateContent(prompt);
+                return result.response.text().trim();
             }
             catch (error) {
-                console.error("Gemini API Error:", error.message || error);
+                console.warn("Primary Gemini model failed:", error === null || error === void 0 ? void 0 : error.message);
+                // Fallback on quota or rate limit errors
+                const shouldFallback = ((_a = error.message) === null || _a === void 0 ? void 0 : _a.includes("Too Many Requests")) ||
+                    ((_b = error.message) === null || _b === void 0 ? void 0 : _b.toLowerCase().includes("quota"));
+                if (shouldFallback) {
+                    console.log("⚠️ Falling back to secondary Gemini model...");
+                    try {
+                        const fallbackResult = yield this.fallbackModel.generateContent(prompt);
+                        return fallbackResult.response.text().trim();
+                    }
+                    catch (fallbackError) {
+                        console.error("Fallback model also failed:", fallbackError === null || fallbackError === void 0 ? void 0 : fallbackError.message);
+                        throw fallbackError;
+                    }
+                }
                 throw error;
             }
         });
     }
-    // Main method to generate response for any user input
     generateResponse(userMessage, clientId) {
         return __awaiter(this, void 0, void 0, function* () {
             const profile = yield this.getClientFitnessProfile(clientId);
             const userLower = userMessage.toLowerCase();
-            // Handle simple chit-chat locally (optional)
             const chitChatTriggers = [
                 "how are you",
                 "how's it going",
@@ -72,10 +91,9 @@ let ChatbotService = class ChatbotService {
             if (chitChatTriggers.some((phrase) => userLower.includes(phrase))) {
                 return {
                     response: `I'm doing great, ${(profile === null || profile === void 0 ? void 0 : profile.firstName) || "there"}! 💪 Ready to crush your fitness goals? Ask me anything about workouts, nutrition, or recovery!`,
-                    source: "gemini",
+                    source: "chitchat",
                 };
             }
-            // Compose personalized prompt for Gemini
             const fitnessContext = profile
                 ? `Client: ${profile.firstName || "User"}. Fitness goal: ${profile.fitnessGoal || "Not set"}. Experience level: ${profile.experienceLevel || "Not set"}. Preferred workout: ${profile.preferredWorkout || "Not set"}. Diet preference: ${profile.dietPreference || "Not set"}.`
                 : "General fitness context.";
@@ -88,15 +106,12 @@ Fitness Context: ${fitnessContext}
 Response:
 `;
             try {
-                let aiResponse = yield this.generateContent(prompt);
-                aiResponse = aiResponse.trim();
-                if (!aiResponse) {
-                    return {
-                        response: `Let's keep pushing, ${(profile === null || profile === void 0 ? void 0 : profile.firstName) || "champ"}! What fitness goal should we tackle today? 💪`,
-                        source: "fallback",
-                    };
-                }
-                return { response: aiResponse, source: "gemini" };
+                const aiResponse = yield this.generateContent(prompt);
+                return {
+                    response: aiResponse ||
+                        `Let's keep pushing, ${(profile === null || profile === void 0 ? void 0 : profile.firstName) || "champ"}! What fitness goal should we tackle today? 💪`,
+                    source: "gemini",
+                };
             }
             catch (error) {
                 return {
@@ -106,7 +121,6 @@ Response:
             }
         });
     }
-    // Socket.IO handler
     handleSocket(io) {
         io.on("connection", (socket) => {
             if (this.connectedClients.has(socket.id)) {
@@ -122,7 +136,7 @@ Response:
                 catch (error) {
                     socket.emit("response", {
                         message: "Something went wrong! Let’s try again! 😅",
-                        source: "fallback",
+                        source: "error",
                     });
                 }
             }));
