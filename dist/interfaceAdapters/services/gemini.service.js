@@ -30,7 +30,7 @@ const cron_1 = require("cron");
 let GeminiService = class GeminiService {
     constructor() {
         this.cronJobs = new Map();
-        this.genAI = new generative_ai_1.GoogleGenerativeAI(config_1.config.gemini.GEMINI_API_KEY);
+        this.genAI = new generative_ai_1.GoogleGenerativeAI(config_1.config.gemini.MAKERSUITE_KEY);
         this.model = this.genAI.getGenerativeModel({
             model: "gemini-1.5-flash",
             generationConfig: {

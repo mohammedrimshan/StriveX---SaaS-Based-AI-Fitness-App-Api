@@ -15,7 +15,7 @@ export class GeminiService {
     private cronJobs: Map<string, CronJob> = new Map();
 
     constructor() {
-        this.genAI = new GoogleGenerativeAI(config.gemini.GEMINI_API_KEY);
+        this.genAI = new GoogleGenerativeAI(config.gemini.MAKERSUITE_KEY);
         this.model = this.genAI.getGenerativeModel({ 
             model: "gemini-1.5-flash",
             generationConfig: {
