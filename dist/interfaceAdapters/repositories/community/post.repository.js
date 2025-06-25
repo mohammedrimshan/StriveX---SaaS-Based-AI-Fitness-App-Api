@@ -47,7 +47,12 @@ let PostRepository = class PostRepository extends base_repository_1.BaseReposito
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const [items, total] = yield Promise.all([
-                    this.model.find({ authorId, isDeleted: false }).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+                    this.model
+                        .find({ authorId, isDeleted: false })
+                        .sort({ createdAt: -1 })
+                        .skip(skip)
+                        .limit(limit)
+                        .lean(),
                     this.model.countDocuments({ authorId, isDeleted: false }),
                 ]);
                 const transformedItems = items.map((item) => this.mapToEntity(item));
@@ -65,25 +70,30 @@ let PostRepository = class PostRepository extends base_repository_1.BaseReposito
                 if (filter.category)
                     query.category = filter.category;
                 let sort = { createdAt: -1 };
-                if (filter.sortBy === 'likes')
-                    sort = { 'likes.length': -1 };
-                else if (filter.sortBy === 'comments')
+                if (filter.sortBy === "likes")
+                    sort = { "likes.length": -1 };
+                else if (filter.sortBy === "comments")
                     sort = { commentsCount: -1 };
                 const pipeline = [
                     { $match: query },
                     {
                         $lookup: {
-                            from: 'comments',
-                            localField: '_id',
-                            foreignField: 'postId',
-                            as: 'comments',
+                            from: "comments",
+                            localField: "_id",
+                            foreignField: "postId",
+                            as: "comments",
                         },
                     },
                     {
                         $addFields: {
                             authorIdObjectId: {
                                 $cond: {
-                                    if: { $regexMatch: { input: "$authorId", regex: /^[0-9a-fA-F]{24}$/ } },
+                                    if: {
+                                        $regexMatch: {
+                                            input: "$authorId",
+                                            regex: /^[0-9a-fA-F]{24}$/,
+                                        },
+                                    },
                                     then: { $toObjectId: "$authorId" },
                                     else: null,
                                 },
@@ -92,10 +102,10 @@ let PostRepository = class PostRepository extends base_repository_1.BaseReposito
                     },
                     {
                         $lookup: {
-                            from: 'trainers',
-                            localField: 'authorIdObjectId',
-                            foreignField: '_id',
-                            as: 'trainerInfo',
+                            from: "trainers",
+                            localField: "authorIdObjectId",
+                            foreignField: "_id",
+                            as: "trainerInfo",
                             pipeline: [
                                 {
                                     $project: {
@@ -112,10 +122,10 @@ let PostRepository = class PostRepository extends base_repository_1.BaseReposito
                     },
                     {
                         $lookup: {
-                            from: 'clients',
-                            localField: 'authorIdObjectId',
-                            foreignField: '_id',
-                            as: 'clientInfo',
+                            from: "clients",
+                            localField: "authorIdObjectId",
+                            foreignField: "_id",
+                            as: "clientInfo",
                             pipeline: [
                                 {
                                     $project: {
@@ -145,7 +155,7 @@ let PostRepository = class PostRepository extends base_repository_1.BaseReposito
                                     },
                                 },
                             },
-                            commentsCount: { $size: '$comments' },
+                            commentsCount: { $size: "$comments" },
                         },
                     },
                     { $sort: sort },
@@ -212,7 +222,9 @@ let PostRepository = class PostRepository extends base_repository_1.BaseReposito
     findReportedPosts() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const posts = yield this.model.find({ 'reports.0': { $exists: true } }).lean();
+                const posts = yield this.model
+                    .find({ "reports.0": { $exists: true } })
+                    .lean();
                 return posts.map((post) => this.mapToEntity(post));
             }
             catch (error) {

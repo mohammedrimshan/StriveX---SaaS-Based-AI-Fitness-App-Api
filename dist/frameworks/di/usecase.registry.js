@@ -1,4 +1,7 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UseCaseRegistry = void 0;
 const tsyringe_1 = require("tsyringe");
@@ -18,6 +21,7 @@ const cloudinary_service_1 = require("@/interfaceAdapters/services/cloudinary.se
 const gemini_service_1 = require("@/interfaceAdapters/services/gemini.service");
 const stripe_service_1 = require("@/interfaceAdapters/services/stripe.service");
 const socket_service_1 = require("@/interfaceAdapters/services/socket.service");
+const chatbot_service_1 = __importDefault(require("@/interfaceAdapters/services/chatbot.service"));
 const socket_notification_service_1 = require("@/interfaceAdapters/services/socket-notification.service");
 const notification_service_1 = require("@/interfaceAdapters/services/notification.service");
 const fcm_service_1 = require("@/interfaceAdapters/services/fcm.service");
@@ -210,6 +214,9 @@ class UseCaseRegistry {
         });
         tsyringe_1.container.register("ZegoTokenService", {
             useClass: zego_token_service_1.ZegoTokenService,
+        });
+        tsyringe_1.container.register("ChatbotService", {
+            useClass: chatbot_service_1.default,
         });
         //* ====== Register Slot Expiry Processor ====== *//
         tsyringe_1.container.register("SlotExpiryProcessor", {

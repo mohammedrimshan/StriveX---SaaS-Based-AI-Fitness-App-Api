@@ -22,7 +22,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiDietPlanRepository = exports.AiWorkoutPlanRepository = void 0;
-// api\src\interfaceAdapters\repositories\client\ai-workout-plan.repository.ts
 const tsyringe_1 = require("tsyringe");
 const ai_workout_model_1 = require("@/frameworks/database/mongoDB/models/ai-workout.model");
 const ai_dietplan_model_1 = require("@/frameworks/database/mongoDB/models/ai-dietplan.model");
@@ -34,7 +33,10 @@ let AiWorkoutPlanRepository = class AiWorkoutPlanRepository extends base_reposit
     }
     findByClientId(clientId) {
         return __awaiter(this, void 0, void 0, function* () {
-            const plans = yield this.model.find({ clientId }).sort({ createdAt: -1 }).lean();
+            const plans = yield this.model
+                .find({ clientId })
+                .sort({ createdAt: -1 })
+                .lean();
             return plans.map((plan) => this.mapToEntity(plan));
         });
     }
@@ -62,7 +64,10 @@ let AiDietPlanRepository = class AiDietPlanRepository extends base_repository_1.
     }
     findByClientId(clientId) {
         return __awaiter(this, void 0, void 0, function* () {
-            const plans = yield this.model.find({ clientId }).sort({ createdAt: -1 }).lean();
+            const plans = yield this.model
+                .find({ clientId })
+                .sort({ createdAt: -1 })
+                .lean();
             return plans.map((plan) => this.mapToEntity(plan));
         });
     }

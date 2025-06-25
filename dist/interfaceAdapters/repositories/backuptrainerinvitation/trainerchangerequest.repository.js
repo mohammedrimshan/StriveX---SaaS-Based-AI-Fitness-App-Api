@@ -35,7 +35,9 @@ let TrainerChangeRequestRepository = class TrainerChangeRequestRepository extend
     }
     findPendingRequests() {
         return __awaiter(this, void 0, void 0, function* () {
-            const requests = yield this.model.find({ status: constants_1.TrainerChangeRequestStatus.PENDING }).lean();
+            const requests = yield this.model
+                .find({ status: constants_1.TrainerChangeRequestStatus.PENDING })
+                .lean();
             return requests.map((req) => this.mapToEntity(req));
         });
     }
@@ -44,7 +46,7 @@ let TrainerChangeRequestRepository = class TrainerChangeRequestRepository extend
             const updates = {
                 status,
                 resolvedAt: new Date(),
-                resolvedBy
+                resolvedBy,
             };
             return this.findOneAndUpdateAndMap({ _id: id }, updates);
         });

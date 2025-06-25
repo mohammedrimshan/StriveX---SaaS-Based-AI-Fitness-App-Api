@@ -8,7 +8,7 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const envalid_1 = require("envalid");
 dotenv_1.default.config();
 const env = (0, envalid_1.cleanEnv)(process.env, {
-    CORS_ALLOWED_ORIGIN: (0, envalid_1.str)({ default: "http://localhost:5173" }),
+    CORS_ALLOWED_ORIGIN: (0, envalid_1.str)({ default: "https://strivex.rimshan.in" }),
     PORT: (0, envalid_1.port)({ default: 5000 }),
     NODE_ENV: (0, envalid_1.str)({ default: "production" }),
     DATABASE_URI: (0, envalid_1.str)(),
@@ -16,8 +16,10 @@ const env = (0, envalid_1.cleanEnv)(process.env, {
     EMAIL_PASS: (0, envalid_1.str)(),
     JWT_ACCESS_KEY: (0, envalid_1.str)({ default: "access-secret-key" }),
     JWT_REFRESH_KEY: (0, envalid_1.str)({ default: "refresh-secret-key" }),
+    JWT_RESET_KEY: (0, envalid_1.str)({ default: "reset-secret-key" }),
     JWT_ACCESS_EXPIRES_IN: (0, envalid_1.str)({ default: "15m" }),
     JWT_REFRESH_EXPIRES_IN: (0, envalid_1.str)({ default: "7d" }),
+    JWT_RESET_EXPIRES_IN: (0, envalid_1.str)({ default: "24h" }),
     REDIS_USERNAME: (0, envalid_1.str)({ default: "default" }),
     REDIS_PASS: (0, envalid_1.str)(),
     REDIS_HOST: (0, envalid_1.str)(),
@@ -29,20 +31,21 @@ const env = (0, envalid_1.cleanEnv)(process.env, {
     VITE_ZEGO_APP_ID: (0, envalid_1.str)(),
     VITE_ZEGO_SERVER_URL: (0, envalid_1.str)(),
     ZEGO_SERVER_SECRET: (0, envalid_1.str)(),
+    MAKERSUITE_KEY: (0, envalid_1.str)()
 });
 exports.config = {
     cors: { ALLOWED_ORIGIN: env.CORS_ALLOWED_ORIGIN },
     server: { PORT: env.PORT, NODE_ENV: env.NODE_ENV },
     database: { URI: env.DATABASE_URI },
-    gemini: { GEMINI_API_KEY: env.GEMINI_API_KEY },
+    gemini: { GEMINI_API_KEY: env.GEMINI_API_KEY, MAKERSUITE_KEY: env.MAKERSUITE_KEY },
     nodemailer: { EMAIL_USER: env.EMAIL_USER, EMAIL_PASS: env.EMAIL_PASS },
     jwt: {
         ACCESS_SECRET_KEY: env.JWT_ACCESS_KEY,
         REFRESH_SECRET_KEY: env.JWT_REFRESH_KEY,
-        RESET_SECRET_KEY: process.env.JWT_RESET_KEY || "reset-secret-key",
+        RESET_SECRET_KEY: env.JWT_RESET_KEY || "reset-secret-key",
         ACCESS_EXPIRES_IN: env.JWT_ACCESS_EXPIRES_IN,
         REFRESH_EXPIRES_IN: env.JWT_REFRESH_EXPIRES_IN,
-        RESET_EXPIRES_IN: process.env.JWT_RESET_EXPIRES_IN || "24h",
+        RESET_EXPIRES_IN: env.JWT_RESET_EXPIRES_IN || "24h",
     },
     redis: {
         REDIS_USERNAME: env.REDIS_USERNAME,

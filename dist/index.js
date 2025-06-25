@@ -1,4 +1,7 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 require("module-alias/register");
 require("reflect-metadata");
@@ -14,6 +17,7 @@ const video_socket_service_1 = require("./interfaceAdapters/services/video-socke
 const notification_service_1 = require("./interfaceAdapters/services/notification.service");
 const resolver_1 = require("./frameworks/di/resolver");
 const resolver_2 = require("./frameworks/di/resolver");
+const chatbot_service_1 = __importDefault(require("./interfaceAdapters/services/chatbot.service"));
 require("@/frameworks/queue/bull/handleexpiredinvitations");
 const mongoConnect = new mongoConnect_1.MongoConnect();
 mongoConnect.connectDB();
@@ -23,8 +27,10 @@ const httpServer = (0, http_1.createServer)(app);
 const socketService = tsyringe_1.container.resolve(socket_service_1.SocketService);
 const videoSocketService = tsyringe_1.container.resolve(video_socket_service_1.VideoSocketService);
 const notificationService = tsyringe_1.container.resolve(notification_service_1.NotificationService);
+const chatbotService = tsyringe_1.container.resolve(chatbot_service_1.default);
 socketService.initialize(httpServer);
 videoSocketService.initialize(httpServer);
+chatbotService.handleSocket(socketService.getIO());
 resolver_1.subscriptionProcessor.start();
 resolver_2.dailyUnusedSessionProcessor.start();
 httpServer.listen(config_1.config.server.PORT, () => {

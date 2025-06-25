@@ -29,7 +29,12 @@ let CommentRepository = class CommentRepository extends base_repository_1.BaseRe
     findByPostId(postId, skip, limit) {
         return __awaiter(this, void 0, void 0, function* () {
             const [items, total] = yield Promise.all([
-                this.model.find({ postId, isDeleted: false }).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+                this.model
+                    .find({ postId, isDeleted: false })
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
                 this.model.countDocuments({ postId, isDeleted: false }),
             ]);
             const transformedItems = items.map((item) => this.mapToEntity(item));
@@ -62,7 +67,9 @@ let CommentRepository = class CommentRepository extends base_repository_1.BaseRe
     }
     findReportedComments() {
         return __awaiter(this, void 0, void 0, function* () {
-            const comments = yield this.model.find({ 'reports.0': { $exists: true } }).lean();
+            const comments = yield this.model
+                .find({ "reports.0": { $exists: true } })
+                .lean();
             return comments.map((comment) => this.mapToEntity(comment));
         });
     }
