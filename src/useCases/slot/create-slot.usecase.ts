@@ -46,7 +46,19 @@ export class CreateSlotUseCase implements ICreateSlotUseCase {
       );
     }
 
+    
+
     if (startTime >= endTime) {
+
+        const isNextDaySlot = endTime.getDate() !== startTime.getDate();
+
+      if (isNextDaySlot) {
+        throw new CustomError(
+          "Slot time cannot span across multiple days. Please select a time range within the same day.",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+      
       throw new CustomError(
         ERROR_MESSAGES.START_TIME_BEFORE_END_TIME(
           slotData.startTime,
