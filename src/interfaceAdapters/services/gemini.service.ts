@@ -10,6 +10,7 @@ import {
 import { config } from "@/shared/config";
 import Redis from "ioredis";
 import { CronJob } from "cron";
+import { jsonrepair } from "jsonrepair";
 
 @injectable()
 export class GeminiService {
@@ -354,14 +355,14 @@ export class GeminiService {
       isSpecificCategory &&
       (preferredWorkout === "yoga" || preferredWorkout === "meditation")
         ? "Reps must be specified as a string in the format 'X seconds' or 'X minutes' (e.g., '30 seconds', '10 minutes') for yoga or meditation exercises."
-        : "Reps must be specified as a number (e.g., 10). For exercises performed per leg (e.g., lunges), include 'per leg' in the notes field, not in reps.";
+        : "Reps must be specified as a number (e.g., 10) or a range (e.g., '10-12'). For exercises performed per leg (e.g., lunges), include 'per leg' in the notes field, not in reps. Do not use phrases like 'As many as' or 'AMRAP'; instead, use a numeric value or range and add 'As many reps as possible' to the notes field if applicable.";
 
     const categoryInstruction = isSpecificCategory
       ? `Generate a comprehensive 7-day ${preferredWorkout} plan. All days must focus exclusively on ${preferredWorkout}, with progressive difficulty and variety suitable for ${preferredWorkout}. ${equipmentInstruction} ${repsInstruction}`
       : `Generate a balanced 7-day workout plan with varied focus areas based on general fitness principles. ${equipmentInstruction} ${repsInstruction}`;
 
     const prompt = JSON.stringify({
-      instruction: `Generate a detailed 7-day workout plan for a client with the following details. ${categoryInstruction}`,
+      instruction: `Generate a detailed 7-day workout plan in strict JSON format for a client with the following details. ${categoryInstruction}`,
       requirements: {
         format: "strict JSON",
         structure: {
@@ -378,7 +379,7 @@ export class GeminiService {
                     (preferredWorkout === "yoga" ||
                       preferredWorkout === "meditation")
                       ? "string"
-                      : "number",
+                      : "number | string", // Allow ranges like "10-12"
                   restTime: "string",
                   notes: "string",
                 },
@@ -403,6 +404,8 @@ export class GeminiService {
                   : `Use available equipment: ${
                       client.equipmentAvailable?.join(", ") || "Basic"
                     }`,
+              jsonValidity:
+                "Ensure the response is valid JSON with no unescaped quotes, missing commas, or trailing commas. All reps fields must be either a number (e.g., 10) or a string range (e.g., '10-12'). Avoid phrases like 'As many as' or 'AMRAP' in reps.",
             }
           : {
               variety:
@@ -410,6 +413,8 @@ export class GeminiService {
               equipment: `Use available equipment: ${
                 client.equipmentAvailable?.join(", ") || "Basic"
               }`,
+              jsonValidity:
+                "Ensure the response is valid JSON with no unescaped quotes, missing commas, or trailing commas. All reps fields must be either a number (e.g., 10) or a string range (e.g., '10-12'). Avoid phrases like 'As many as' or 'AMRAP' in reps.",
             },
       },
       client: {
@@ -447,7 +452,26 @@ export class GeminiService {
                         notes: "Focus on breath and alignment; use yoga mat",
                       },
                     ]
-                  : this.getCategoryExerciseExample(preferredWorkout),
+                  : preferredWorkout === "meditation"
+                  ? [
+                      {
+                        name: "Mindful Breathing",
+                        sets: 1,
+                        reps: "10 minutes",
+                        restTime: "N/A",
+                        notes: "Focus on deep, steady breaths",
+                      },
+                    ]
+                  : [
+                      {
+                        name: "Squats",
+                        sets: 3,
+                        reps: "10-12",
+                        restTime: "60 seconds",
+                        notes:
+                          "Maintain proper form; As many reps as possible within range",
+                      },
+                    ],
               warmup:
                 preferredWorkout === "yoga"
                   ? "5 min gentle yoga stretches"
@@ -461,9 +485,7 @@ export class GeminiService {
                   ? `5 min ${preferredWorkout}-specific relaxation`
                   : "5 min static stretching",
               duration:
-                preferredWorkout === "yoga"
-                  ? "45 minutes"
-                  : isSpecificCategory
+                preferredWorkout === "yoga" || isSpecificCategory
                   ? "45 minutes"
                   : "60 minutes",
               intensity: "Moderate",
@@ -586,24 +608,32 @@ export class GeminiService {
             );
           }
           // Validate reps
-          if (
-            typeof exercise.reps === "string" &&
-            !/^\d+$|^\d+\s*(seconds|minutes)$/.test(exercise.reps)
-          ) {
-            const match = exercise.reps.match(/^(\d+)/);
-            if (match) {
-              exercise.reps = parseInt(match[1]);
+          if (typeof exercise.reps === "string") {
+            if (
+              /^\d+$|^\d+\s*(seconds|minutes)$|^\d+-\d+$/.test(exercise.reps)
+            ) {
+              // Valid: number, time-based (e.g., "30 seconds"), or range (e.g., "10-12")
+              continue;
+            } else if (exercise.reps.toLowerCase() === "amrap") {
               exercise.notes =
-                (exercise.notes || "") + ` (originally ${exercise.reps})`;
+                (exercise.notes || "") + " As many reps as possible";
+              exercise.reps = "10-12"; // Default range for AMRAP
             } else {
-              exercise.reps = 10; // Default
-              exercise.notes =
-                (exercise.notes || "") + ` (invalid reps: ${exercise.reps})`;
+              const match = exercise.reps.match(/^(\d+)/);
+              if (match) {
+                exercise.reps = parseInt(match[1]);
+                exercise.notes =
+                  (exercise.notes || "") + ` (originally ${exercise.reps})`;
+              } else {
+                exercise.reps = "10-12"; // Default range
+                exercise.notes =
+                  (exercise.notes || "") + ` (invalid reps: ${exercise.reps})`;
+              }
+              console.warn(
+                `Fixed invalid reps in day ${day.day || i}, exercise ${j}:`,
+                exercise
+              );
             }
-            console.warn(
-              `Fixed invalid reps in day ${day.day || i}, exercise ${j}:`,
-              exercise
-            );
           }
         }
       }
@@ -873,14 +903,15 @@ export class GeminiService {
     }
 
     let cleaned = rawResponse
-      .replace(/```(json)?\s*/g, "")
+      .replace(/```(json)?\s*/g, "") // Remove code block markers
       .replace(/```\s*/g, "")
-      .replace(/\n\s*/g, "")
+      .replace(/\n\s*/g, "") // Remove newlines
       .trim();
     console.log("Cleaned response:", cleaned);
 
     try {
-      const parsed = JSON.parse(cleaned);
+      const repaired = jsonrepair(cleaned);
+      const parsed = JSON.parse(repaired);
       console.log("Cleaned response is valid JSON");
       return { response: cleaned, wasRepaired: true };
     } catch (cleaningError) {
@@ -966,8 +997,8 @@ export class GeminiService {
       if (jsonStart >= 0 && jsonEnd > jsonStart) {
         jsonString = jsonString.substring(jsonStart, jsonEnd);
       }
-
-      let repaired = jsonString.replace(
+      let repaired = jsonString;
+      repaired = repaired.replace(
         /"reps":\s*"(\d+)\s*per\s*leg"/g,
         (match, num) => {
           return `"reps": ${num}, "notes": "Per leg"`;
@@ -985,6 +1016,16 @@ export class GeminiService {
         .replace(/}\s*{/g, "},{") // Add commas between objects
         .replace(/,+/g, ",") // Replace multiple commas with single
         .replace(/\]\s*\[/g, "],["); // Add commas between arrays
+
+      // Specifically handle invalid reps values like "As many as"
+      repaired = repaired.replace(
+        /"reps":\s*"As many as[^"]*"/g,
+        `"reps": "AMRAP", "notes": "As many reps as possible"`
+      );
+      repaired = repaired.replace(/"reps":\s*"[^0-9][^"]*"/g, (match) => {
+        const notes = match.match(/"reps":\s*"(.*?)"/)?.[1] || "Invalid reps";
+        return `"reps": "10", "notes": "Originally ${notes}"`;
+      });
 
       try {
         const parsed = JSON.parse(repaired);
