@@ -474,11 +474,15 @@ let GeminiService = class GeminiService {
                     console.warn(`Day ${i} missing valid day field:`, day);
                     throw new Error(`Day ${i} must have a valid day string`);
                 }
-                if (!day.exercises ||
-                    !Array.isArray(day.exercises) ||
-                    day.exercises.length === 0) {
-                    console.warn(`Day ${day.day || i} has no valid exercises:`, day);
-                    throw new Error(`Day ${day.day || i} must have at least one exercise`);
+                if (!day.exercises || !Array.isArray(day.exercises)) {
+                    console.warn(`Day ${day.day || i} has invalid exercises array:`, day);
+                    throw new Error(`Day ${day.day || i} must have a valid exercises array`);
+                }
+                // Allow empty exercises array for rest days
+                if (day.exercises.length === 0 &&
+                    !["Rest", "Active Rest"].includes(day.focus)) {
+                    console.warn(`Day ${day.day || i} has no exercises and is not a rest day:`, day);
+                    throw new Error(`Day ${day.day || i} must have at least one exercise unless it is a Rest or Active Rest day`);
                 }
                 for (let j = 0; j < day.exercises.length; j++) {
                     const exercise = day.exercises[j];
