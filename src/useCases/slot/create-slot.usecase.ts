@@ -56,6 +56,15 @@ export class CreateSlotUseCase implements ICreateSlotUseCase {
       );
     }
 
+    const durationInMinutes =
+      (endTime.getTime() - startTime.getTime()) / (1000 * 60);
+    if (durationInMinutes !== 30) {
+      throw new CustomError(
+        `Each slot must be exactly 30 minutes. Given duration is ${durationInMinutes} minutes.`,
+        HTTP_STATUS.BAD_REQUEST
+      );
+    }
+
     const overlappingSlots = await this.slotRepository.findOverlappingSlots(
       trainerId,
       startTime,
